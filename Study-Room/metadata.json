@@ -1,0 +1,5 @@
+{
+  "name": "Study Room Booker",
+  "description": "A mobile-first reservation system for department study rooms with urgent booking alerts and history tracking.",
+  "requestFramePermissions": []
+}
