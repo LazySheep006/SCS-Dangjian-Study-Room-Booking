@@ -65,4 +65,4 @@
     ```
 
 ---
-*Stay Hungry, Stay Foolish. 祝大家期末全 A！*
+*Stay Hungry, Stay Foolish. 祝大家期末全 A+！*
