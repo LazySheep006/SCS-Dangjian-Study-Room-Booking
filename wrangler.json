@@ -1,8 +1,0 @@
-{
-  "name": "study-room-booker",
-  "compatibility_date": "2026-1-6",
-  "assets": {
-    "directory": "dist",
-    "binding": "ASSETS"
-  }
-}
