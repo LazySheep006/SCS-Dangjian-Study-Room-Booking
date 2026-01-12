@@ -21,8 +21,8 @@ interface AggregatedSlot {
   dateStr: string;
   dateObj: Date;
   slotTime: string; // "9:00-13:00"
-  leader: string; // 队长名字 (从身份为leader的行提取)
-  members: string[]; // 组员名字列表 (从身份为member的行提取)
+  leader: string | null; // 队长名字 (可能为空)
+  members: string[]; // 组员名字列表
 }
 
 const HistoryList: React.FC<HistoryListProps> = ({ bookings, loading }) => {
@@ -109,23 +109,15 @@ const HistoryList: React.FC<HistoryListProps> = ({ bookings, loading }) => {
   groupingMap.forEach((val, key) => {
      const [dateStr, slotTime] = key.split('|');
      
-     // 容错：如果没有队长但有组员，选第一个组员暂代显示（虽然被校验逻辑限制了，但为了UI不崩）
-     let finalLeader = val.leader;
-     let finalMembers = val.members;
-
-     if (!finalLeader && finalMembers.length > 0) {
-         finalLeader = finalMembers[0];
-         finalMembers = finalMembers.slice(1);
-     }
-
-     if (finalLeader) {
+     // 只要有人（无论队长还是组员）都显示该条目
+     if (val.leader || val.members.length > 0) {
         aggregatedSlots.push({
            id: key,
            dateStr,
            dateObj: val.dateObj,
            slotTime,
-           leader: finalLeader,
-           members: finalMembers
+           leader: val.leader, // 可能为 null，如果不为空则是队长名
+           members: val.members
         });
      }
   });
@@ -215,17 +207,34 @@ const HistoryList: React.FC<HistoryListProps> = ({ bookings, loading }) => {
 
                         {/* Info Row */}
                         <div className="flex items-start justify-between gap-4">
-                          {/* Leader (First Booker) */}
+                          {/* Leader Section */}
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                              {slotItem.leader[0]}
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold text-gray-800 leading-tight">
-                                {slotItem.leader}
-                                <span className="ml-1.5 text-[10px] font-normal text-gray-400 border border-gray-100 px-1 rounded-md">队长</span>
-                              </div>
-                            </div>
+                            {slotItem.leader ? (
+                                // 有队长的情况
+                                <>
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                      {slotItem.leader[0]}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-800 leading-tight">
+                                        {slotItem.leader}
+                                        <span className="ml-1.5 text-[10px] font-normal text-gray-400 border border-gray-100 px-1 rounded-md">队长</span>
+                                      </div>
+                                    </div>
+                                </>
+                            ) : (
+                                // 缺队长的情况
+                                <>
+                                    <div className="w-8 h-8 rounded-full bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-xs font-bold text-gray-400">
+                                      缺
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-400 leading-tight">
+                                        缺队长
+                                      </div>
+                                    </div>
+                                </>
+                            )}
                           </div>
                           
                           {/* Members (Other Bookers) */}
