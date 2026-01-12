@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { addDays, format } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
-import { Loader2, Plus, Clock, User, Crown, Users } from 'lucide-react';
+import {zhCN} from 'date-fns/locale/zh-CN';
+import { Loader2, Plus, Clock, User, Crown, Users, PartyPopper } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
-import { TIME_SLOTS, MEMBER_LIST, Booking, MAX_CAPACITY } from '../types';
+import { TIME_SLOTS, MEMBER_LIST, Booking, MAX_CAPACITY, EXAM_END_DATE, CELEBRATION_MESSAGE } from '../types';
 
 interface BookingFormProps {
   onSuccess: () => void;
@@ -105,6 +105,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 庆祝彩蛋状态
+  const [showCelebration, setShowCelebration] = useState(false);
+
   // 计算当前日期每个时间段的状态
   const slotStatus = useMemo(() => {
     const todayBookings = existingBookings.filter(b => b.date === date);
@@ -136,10 +139,9 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
     // 1. 检查总容量
     if (currentStatus.count >= MAX_CAPACITY) return;
 
-    // 2. 检查队长冲突 (如果当前选了队长身份，且该时间段已有队长)
-    // 视觉上允许选，但在提交时或者下方显示警告，这里我们允许选中，但给个视觉反馈
+    // 2. 检查队长冲突
     
-    // 3. 单选逻辑：如果点的是已选的则取消，否则选中新的（并清空旧的）
+    // 3. 单选逻辑
     setSelectedSlots(prev => 
       prev.includes(slot) ? [] : [slot]
     );
@@ -179,8 +181,36 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
       }
     }
 
-    // 4. 查重逻辑：同一天、同一人、同一时间段不能重复
-    // 数据库里的 leader 字段现在存的是名字
+    // 4. 校验连续队长逻辑 (新)
+    if (role === 'leader') {
+      // 4a. 获取该用户当天已有的队长预约
+      const existingLeaderSlots = existingBookings
+        .filter(b =>
+          b.date === date &&
+          b.leader === name.trim() &&
+          b.members === 'leader'
+        )
+        .flatMap(b => b.slot.split(',').map(s => s.trim()));
+
+      // 4b. 合并当前选中的时间段
+      const allProjectedLeaderSlots = [...new Set([...existingLeaderSlots, ...selectedSlots])];
+
+      // 4c. 转换为索引并排序
+      const indices = allProjectedLeaderSlots
+        .map(slot => TIME_SLOTS.indexOf(slot))
+        .filter(idx => idx !== -1)
+        .sort((a, b) => a - b);
+
+      // 4d. 检查是否有连续索引 (例如 0和1, 或者 1和2)
+      for (let i = 0; i < indices.length - 1; i++) {
+        if (indices[i + 1] === indices[i] + 1) {
+          setError("注意！同一天不能连续两个时间段担任队长哦！");
+          return;
+        }
+      }
+    }
+
+    // 5. 查重逻辑
     const isDuplicate = existingBookings.some(b => {
       if (b.date !== date) return false;
       if (b.leader !== name.trim()) return false; 
@@ -213,12 +243,19 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
 
       if (supabaseError) throw supabaseError;
 
-      // Reset form
+      // Reset form logic
       setName('');
       setSelectedSlots([]);
-      setRole('member'); // 重置为member，防止误操作
+      setRole('member'); 
       
+      // 触发数据更新
       onSuccess();
+
+      // 🎉 检查是否触发彩蛋
+      if (date === EXAM_END_DATE) {
+        setShowCelebration(true);
+      }
+
     } catch (err: any) {
       console.error(err);
       setError(err.message || "预约失败，请检查网络或重试");
@@ -230,6 +267,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
   const displayDate = date ? format(new Date(date), 'M月d日 EEEE', { locale: zhCN }) : '';
 
   return (
+    <>
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6 relative overflow-hidden h-fit">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
       <h2 className="text-gray-900 font-semibold text-lg mb-4 flex items-center gap-2">
@@ -324,7 +362,6 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
               const isSelected = selectedSlots.includes(slot);
               const remaining = Math.max(0, MAX_CAPACITY - status.count);
               
-              // 视觉提示：如果我是队长，且该时间段已有队长，显示警告色（但不禁用，在提交时拦截）
               const isLeaderConflict = role === 'leader' && status.hasLeader;
               
               let btnClass = "border-gray-200 text-gray-600 hover:border-indigo-300 hover:bg-gray-50 bg-white";
@@ -391,6 +428,44 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
         </button>
       </form>
     </div>
+
+    {/* 🎉 Celebration Modal (No Blur, Transparent Overlay) */}
+    {showCelebration && (
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/5 animate-in fade-in duration-300"
+        onClick={() => setShowCelebration(false)}
+      >
+        <div 
+          className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl border border-gray-100 text-center transform animate-in zoom-in-95 duration-200 relative"
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Decorative Sparkles */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 opacity-80"></div>
+          
+          <div className="flex justify-center mb-4">
+            <div className="bg-indigo-50 p-3 rounded-full">
+                <PartyPopper className="w-8 h-8 text-indigo-600 animate-bounce" />
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold text-gray-900 mb-2">
+            期末就要结束啦！
+          </h3>
+          
+          <p className="text-gray-600 font-medium mb-6 leading-relaxed">
+            {CELEBRATION_MESSAGE}
+          </p>
+
+          <button 
+            onClick={() => setShowCelebration(false)}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-lg shadow-indigo-200"
+          >
+            好耶！
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
