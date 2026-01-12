@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { format, isToday, isTomorrow, isSameDay, addDays } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import {zhCN} from 'date-fns/locale/zh-CN';
 import { History, Users, Clock, CalendarDays, Sparkles, X, Quote } from 'lucide-react';
 import { Booking } from '../types';
 
@@ -12,7 +12,7 @@ interface HistoryListProps {
 interface HitokotoData {
   hitokoto: string;
   from: string;
-  from_who: string;
+  from_who: string | null;
 }
 
 // 聚合后的数据结构 (用于前端展示)
@@ -35,10 +35,34 @@ const HistoryList: React.FC<HistoryListProps> = ({ bookings, loading }) => {
   const triggerEasterEgg = async () => {
     setEggLoading(true);
     setShowEgg(true); // 先打开弹窗显示加载中
+    
+    // 增加类别：d=文学, i=诗词, k=哲学 (增加出现作者的概率)
+    // 增加时间戳防止缓存
+    const fetchUrl = `https://v1.hitokoto.cn/?c=d&c=i&c=k&encode=json`;
+
     try {
-      const res = await fetch('https://v1.hitokoto.cn/?c=d');
-      const data = await res.json();
-      setEggData(data);
+      // ⚡️ 策略：并发请求两次
+      // 目的1：防止缓存重复
+      // 目的2：优先展示有“作者”的数据，减少“佚名”出现的概率
+      const req1 = fetch(`${fetchUrl}&t=${Date.now()}_1`).then(r => r.json());
+      const req2 = fetch(`${fetchUrl}&t=${Date.now()}_2`).then(r => r.json());
+
+      const [data1, data2] = await Promise.all([req1, req2]);
+
+      let selectedData = data2; // 默认取第二个
+
+      // 🧠 智能筛选逻辑：
+      // 如果 data1 有作者而 data2 没有，优先选 data1
+      if (data1.from_who && !data2.from_who) {
+        selectedData = data1;
+      } 
+      // 如果 data2 没有作者且内容过短，尝试选 data1
+      else if (!data2.from_who && data2.hitokoto.length < 5 && data1.hitokoto.length > 5) {
+        selectedData = data1;
+      }
+      
+      setEggData(selectedData);
+
     } catch (e) {
       console.error("彩蛋碎了...", e);
       setEggData({

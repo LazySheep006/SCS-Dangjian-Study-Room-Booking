@@ -204,7 +204,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
       // 4d. 检查是否有连续索引 (例如 0和1, 或者 1和2)
       for (let i = 0; i < indices.length - 1; i++) {
         if (indices[i + 1] === indices[i] + 1) {
-          setError("注意！同一天不能连续两个时间段担任队长哦！");
+          setError("为了把带队机会留给更多人，同一天不能连续两个时间段担任队长哦！");
           return;
         }
       }
@@ -251,7 +251,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
       // 触发数据更新
       onSuccess();
 
-      // 🎉 检查是否触发彩蛋
+      // 检查是否触发彩蛋
       if (date === EXAM_END_DATE) {
         setShowCelebration(true);
       }
@@ -429,7 +429,7 @@ const BookingForm: React.FC<BookingFormProps> = ({ onSuccess, existingBookings }
       </form>
     </div>
 
-    {/* 🎉 Celebration Modal (No Blur, Transparent Overlay) */}
+    {/* Celebration Modal (No Blur, Transparent Overlay) */}
     {showCelebration && (
       <div 
         className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/5 animate-in fade-in duration-300"
